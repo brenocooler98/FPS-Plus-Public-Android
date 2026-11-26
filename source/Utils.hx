@@ -162,6 +162,9 @@ class Utils
 
 	//FileSystem readDirectory but with mods folder
 	public static inline function readDirectory(path:String):Array<String>{
+		#if mobile
+		return readAssetDirectory(path);
+		#else
 		var files:Array<String> = [];
 		path = path.replace("assets/", PolymodHandler.ASSETS_FOLDER + "/");
 
@@ -174,6 +177,22 @@ class Utils
 						files.push(file);
 					}
 				}
+			}
+		}
+		return files;
+		#end
+	}
+
+	public static function readAssetDirectory(path:String):Array<String>{
+		var files:Array<String> = [];
+		if(!path.endsWith("/")){ path += "/"; }
+		if(cachedAssetsList == null){ cachedAssetsList = Assets.list(); }
+		for(asset in cachedAssetsList){
+			var id:String = asset.indexOf(":") != -1 ? asset.substr(asset.indexOf(":") + 1) : asset;
+			if(!id.startsWith(path)){ continue; }
+			var entry:String = id.substr(path.length).split("/")[0];
+			if(entry.length > 0 && !files.contains(entry)){
+				files.push(entry);
 			}
 		}
 		return files;

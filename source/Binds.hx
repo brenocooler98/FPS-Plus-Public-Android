@@ -376,15 +376,15 @@ class Binds
 	}
 
 	inline public static function pressed(input:String):Bool{
-		return pressedKeyboardOnly(input) || pressedControllerOnly(input);
+		return pressedKeyboardOnly(input) || pressedControllerOnly(input) #if mobile || mobile.MobileInput.check(input, PRESSED) #end;
 	}
 
 	inline public static function justPressed(input:String):Bool{
-		return justPressedKeyboardOnly(input) || justPressedControllerOnly(input);
+		return justPressedKeyboardOnly(input) || justPressedControllerOnly(input) #if mobile || mobile.MobileInput.check(input, JUST_PRESSED) #end;
 	}
 
 	inline public static function justReleased(input:String):Bool{
-		return justReleasedKeyboardOnly(input) || justReleasedControllerOnly(input);
+		return justReleasedKeyboardOnly(input) || justReleasedControllerOnly(input) #if mobile || mobile.MobileInput.check(input, JUST_RELEASED) #end;
 	}
 
 	inline public static function pressedKeyboardOnly(input:String):Bool{

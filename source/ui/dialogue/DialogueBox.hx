@@ -247,7 +247,7 @@ class DialogueBox extends FlxSpriteGroup
 	override function update(elapsed:Float){
 		super.update(elapsed);
 
-		if((FlxG.keys.justPressed.ANY || FlxG.gamepads.anyJustPressed(ANY)) && !(FlxG.keys.anyJustPressed(FlxG.sound.volumeDownKeys) || FlxG.keys.anyJustPressed(FlxG.sound.volumeUpKeys)) && !finishedDialogue){
+		if((FlxG.keys.justPressed.ANY || FlxG.gamepads.anyJustPressed(ANY) #if mobile || mobile.MobileInput.anyTouchJustPressed() #end) && !(FlxG.keys.anyJustPressed(FlxG.sound.volumeDownKeys) || FlxG.keys.anyJustPressed(FlxG.sound.volumeUpKeys)) && !finishedDialogue){
 			//if dialogue are still playing, skip it
 			if(!finishedLine){
 				dialogueText.skip();

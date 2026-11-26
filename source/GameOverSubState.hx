@@ -65,9 +65,13 @@ class GameOverSubState extends BaseGameOverSubState
 		}
 		
 		super.create();
+
+		addBackButton();
 	}
 
 	override function update(elapsed:Float){
+		if(!isEnding){ mobileTapAnywhere(); }
+
 		if(Binds.justPressed("menuAccept") && !isEnding){
 			endBullshit();
 		}

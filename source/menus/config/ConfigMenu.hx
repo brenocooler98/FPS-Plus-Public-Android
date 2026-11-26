@@ -320,11 +320,26 @@ class ConfigMenu extends FlxUIStateExt
 
 		super.create();
 
+		addSwipe();
+		addBackButton();
+
 	}
 
 	override function update(elapsed:Float):Void{
 
 		super.update(elapsed);
+
+		if(!exiting){
+			if(state == "topLevelMenu"){
+				mobileList(icons, curSelected, function(change:Int){
+					FlxG.sound.play(Paths.sound("scrollMenu"));
+					changeCategory(change);
+				});
+			}
+			else if(state == "subMenu" && !mobileTap(prevCategoryArrow, "menuCycleLeft") && !mobileTap(nextCategoryArrow, "menuCycleRight")){
+				mobileOptionTap();
+			}
+		}
 
 		pressUp = Binds.justPressed("menuUp");
 		pressDown = Binds.justPressed("menuDown");
@@ -484,6 +499,34 @@ class ConfigMenu extends FlxUIStateExt
 
 		descText.y = descBar.y + 16;
 
+	}
+
+	function mobileOptionTap():Void{
+		#if mobile
+		var i:Int = optionNames.length - 1;
+		while(i >= 0){
+			if(curListStartOffset + i < configOptions[curSelected].length){
+				if(i == curListPosition && mobileTap(optionValues[i], "menuRight")){
+					return;
+				}
+				if(mobile.TouchUtil.tapped(optionNames[i]) || mobile.TouchUtil.tapped(optionValues[i])){
+					if(i == curListPosition){
+						mobile.MobileInput.inject("menuAccept");
+					}
+					else{
+						if(configOptions[curSelected][curListStartOffset + curListPosition].optionDeselect != null){
+							configOptions[curSelected][curListStartOffset + curListPosition].optionDeselect();
+						}
+						curListPosition = i;
+						FlxG.sound.play(Paths.sound("scrollMenu"));
+						textUpdate();
+					}
+					return;
+				}
+			}
+			i--;
+		}
+		#end
 	}
 
 	function changeCategory(change:Int, ?doTween:Bool = true):Void{
@@ -951,7 +994,7 @@ class ConfigMenu extends FlxUIStateExt
 				textUpdateSingle(curListPosition);
 			}
 
-			if(FlxG.keys.justPressed.ENTER){
+			if(FlxG.keys.justPressed.ENTER #if mobile || pressAccept #end){
 				state = "transitioning";
 				saveMenuPosition();
 				FlxG.sound.music.fadeOut(0.3);
@@ -1396,6 +1439,27 @@ class ConfigMenu extends FlxUIStateExt
 		configOptions[2].push(checkForUpdatesSetting);
 		#end
 
+		#if mobile
+		configOptions[0].remove(keyBinds);
+		configOptions[1].remove(fullscreenSettings);
+		configOptions[1].remove(cacheSettings);
+		for(category in configOptions){
+			for(option in category){
+				option.description = mobileDescription(option.description);
+				for(i in 0...option.extraData.length){
+					if(Std.isOfType(option.extraData[i], String)){
+						option.extraData[i] = mobileDescription(option.extraData[i]);
+					}
+				}
+			}
+		}
+		#end
+
+	}
+
+	function mobileDescription(text:String):String{
+		if(text == null){ return null; }
+		return text.replace("Press \"ENTER\"", "Tap").replace("Press ENTER", "Tap");
 	}
 
 	function resyncLayers():Void {

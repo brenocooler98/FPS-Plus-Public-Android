@@ -247,7 +247,7 @@ class ModManagerState extends FlxUIStateExt
 			Sys.command("explorer.exe /n, /e, \"" + Sys.getCwd().substring(0, Sys.getCwd().length-1) + "\\" + PolymodHandler.MODS_FOLDER + "\"");
 		};
 
-		menuButtons = [enableDisableButton, moveUpButton, moveDownButton, configButton, reloadButton, openFolderButton];
+		menuButtons = [enableDisableButton, moveUpButton, moveDownButton, configButton, reloadButton #if !mobile , openFolderButton #end];
 
 		buildFullModList();
 
@@ -276,6 +276,9 @@ class ModManagerState extends FlxUIStateExt
 		changeButtonSelection(0);
 
 		super.create();
+
+		addSwipe();
+		addBackButton();
 	}
 
 	var canDoThings:Bool = true;
@@ -285,6 +288,11 @@ class ModManagerState extends FlxUIStateExt
 		if(canDoThings){
 			switch(state){
 				case "selecting":
+					mobileList(menuButtons, curSelectedButton, function(change:Int){
+						changeButtonSelection(change);
+						FlxG.sound.play(Paths.sound("scrollMenu"));
+					});
+
 					if(Binds.justPressed("menuUp") && hasMods){
 						changeModSelection(-1);
 						FlxG.sound.play(Paths.sound("scrollMenu"));

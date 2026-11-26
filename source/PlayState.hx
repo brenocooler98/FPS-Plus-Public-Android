@@ -776,6 +776,9 @@ class PlayState extends MusicBeatState
 
 		super.create();
 
+		addHitbox();
+		addPauseButton();
+
 		for(script in scripts){ script.postCreate(); }
 
 		if(boyfriend.characterInfo.info.functions.postScript != null){

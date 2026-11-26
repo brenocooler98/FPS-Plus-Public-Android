@@ -279,6 +279,9 @@ class StoryMenuState extends MusicBeatState
 		add(resetScoreNo);
 
 		super.create();
+
+		addSwipe();
+		addBackButton();
 	}
 
 	function repositionCharacter(charIndex:Int) {
@@ -313,6 +316,13 @@ class StoryMenuState extends MusicBeatState
 			case "week":
 				if (!movedBack){
 					if (!selectedWeek){
+						if(!mobileTap(leftArrow, "menuLeft") && !mobileTap(rightArrow, "menuRight") && !mobileTap(scoreText, "menuResetScore")){
+							mobileList(grpWeekText.members, curWeek, function(change:Int){
+								changeWeek(change);
+								changeDifficulty(0, false);
+							});
+						}
+
 						if(Binds.justPressed("menuUp")){
 							changeWeek(-1);
 							changeDifficulty(0, false);
@@ -363,6 +373,10 @@ class StoryMenuState extends MusicBeatState
 				}
 
 			case "resetScore":
+				if(!mobileTap(resetScoreYes, resetScoreState ? "menuAccept" : "menuRight")){
+					mobileTap(resetScoreNo, resetScoreState ? "menuLeft" : "menuAccept");
+				}
+
 				if(Binds.justPressed("menuLeft") || Binds.justPressed("menuRight")){
 					resetScoreState = !resetScoreState;
 					FlxG.sound.play(Paths.sound('scrollMenu'));

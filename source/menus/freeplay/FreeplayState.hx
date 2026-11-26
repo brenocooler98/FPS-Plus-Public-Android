@@ -213,6 +213,9 @@ class FreeplayState extends MusicBeatState
 		}
 
 		super.create();
+
+		addSwipe();
+		addBackButton();
 	} 
 
 
@@ -238,6 +241,13 @@ class FreeplayState extends MusicBeatState
 		if(transitionOver){
 			switch(selectingMode){
 				case "song":
+					if(!mobileTap(arrowLeft, "menuLeft") && !mobileTap(arrowRight, "menuRight") && !mobileTap(miniArrowLeft, "menuCycleLeft") && !mobileTap(miniArrowRight, "menuCycleRight") && !mobileTap(changeCharacterText, "menuChangeCharacter") && !mobileTap(resetScoreHintText, "menuResetScore")){
+						mobileList(categoryMap[categoryNames[curCategory]], curSelected, function(change:Int){
+							changeSelected(change);
+							FlxG.sound.play(Paths.sound('scrollMenu'));
+						});
+					}
+
 					if(Binds.justPressed("menuUp")){
 						changeSelected(-1);
 						FlxG.sound.play(Paths.sound('scrollMenu'));
@@ -365,6 +375,10 @@ class FreeplayState extends MusicBeatState
 		
 					
 				case "variation":
+					if(!mobileTap(variationArrowLeft, "menuLeft") && !mobileTap(variationArrowRight, "menuRight")){
+						mobileTapAnywhere();
+					}
+
 					if(Binds.justPressed("menuLeft")){
 						changeVariation(-1);
 						FlxG.sound.play(Paths.sound('scrollMenu'));
@@ -391,6 +405,10 @@ class FreeplayState extends MusicBeatState
 					else{ variationArrowRight.scale.set(2, 2); }
 					
 				case "variationRandom":
+					if(!mobileTap(variationArrowLeft, "menuLeft") && !mobileTap(variationArrowRight, "menuRight")){
+						mobileTapAnywhere();
+					}
+
 					if(Binds.justPressed("menuLeft")){
 						changeVariationRandom(-1);
 						FlxG.sound.play(Paths.sound('scrollMenu'));
@@ -430,6 +448,10 @@ class FreeplayState extends MusicBeatState
 					else{ variationArrowRight.scale.set(2, 2); }
 
 				case "resetScore":
+					if(!mobileTap(resetScoreYes, resetScoreState ? "menuAccept" : "menuRight")){
+						mobileTap(resetScoreNo, resetScoreState ? "menuLeft" : "menuAccept");
+					}
+
 					if(Binds.justPressed("menuLeft") || Binds.justPressed("menuRight")){
 						resetScoreState = !resetScoreState;
 						FlxG.sound.play(Paths.sound('scrollMenu'));
@@ -1190,6 +1212,17 @@ class FreeplayState extends MusicBeatState
 	}
 
 	function updateChangeCharacterText(controller:Bool = false):Void{
+		#if mobile
+		if(!controller){
+			changeCharacterText.text = "Tap here to Change Character";
+			changeCharacterText.screenCenter(X);
+			resetScoreHintText.text = "Tap here to Reset Your Score";
+			resetScoreHintText.screenCenter(X);
+			changeTabText.text = "Tap the arrows to Change Tabs";
+			changeTabText.screenCenter(X);
+			return;
+		}
+		#end
 		if(!controller){
 			if(Binds.binds.get("menuChangeCharacter").binds.length > 0){
 				var key = Binds.binds.get("menuChangeCharacter").binds[0];

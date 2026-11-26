@@ -114,10 +114,18 @@ class PauseSubState extends BasePauseSubState
 		changeSelection();
 
 		super.create();
+
+		addSwipe();
+		addBackButton();
 	}
 
 	override function update(elapsed:Float){
 		if(!becomeUseless){
+			mobileList(menuGroup.members, curSelected, function(change:Int){
+				changeSelection(change);
+				FlxG.sound.play(Paths.sound("scrollMenu"), 0.8);
+			});
+
 			if (Binds.justPressed("menuUp")){
 				changeSelection(-1);
 				FlxG.sound.play(Paths.sound("scrollMenu"), 0.8);

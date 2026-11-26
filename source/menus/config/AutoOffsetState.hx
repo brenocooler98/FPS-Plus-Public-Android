@@ -165,6 +165,8 @@ class AutoOffsetState extends MusicBeatState
 
 		super.create();
 
+		addBackButton();
+
 	}
 
 	override function update(elapsed:Float) {
@@ -185,7 +187,7 @@ class AutoOffsetState extends MusicBeatState
 				endOfSong = true;
 				endSong();
 			}
-			else if (FlxG.keys.justPressed.ANY && (Conductor.songPosition >= 4500 && Conductor.songPosition <= 43500) && !(ending || endOfSong)){
+			else if ((FlxG.keys.justPressed.ANY #if mobile || mobile.MobileInput.anyTouchJustPressed() #end) && (Conductor.songPosition >= 4500 && Conductor.songPosition <= 43500) && !(ending || endOfSong)){
 				hitBeat();
 			}
 

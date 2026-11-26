@@ -1,6 +1,7 @@
 package extensions.flixel;
 
 import extensions.flixel.FlxCameraExt;
+import flixel.FlxBasic;
 import flixel.FlxG;
 import flixel.FlxSprite;
 import flixel.FlxState;
@@ -12,6 +13,13 @@ import scripts.ScriptableState;
 import scripts.ScriptedState;
 import transition.*;
 import transition.data.*;
+#if mobile
+import flixel.FlxCamera;
+import mobile.Hitbox;
+import mobile.MobileButton;
+import mobile.MobileControls;
+import mobile.MobileInput;
+#end
 
 using StringTools;
 
@@ -31,6 +39,70 @@ class FlxUIStateExt extends FlxUIState
 	public var customTransOut:BaseTransition = null;
 
 	private var gcTimer:Int = 0;
+
+	#if mobile
+	public var backButton:MobileButton;
+	public var pauseButton:MobileButton;
+	public var hitbox:Hitbox;
+
+	var mobileCamera:FlxCamera;
+
+	function getMobileCamera():FlxCamera{
+		if(mobileCamera == null){
+			mobileCamera = MobileControls.createCamera();
+		}
+		return mobileCamera;
+	}
+	#end
+
+	public function addSwipe():Void{
+		#if mobile
+		MobileInput.addSwipeState(this);
+		#end
+	}
+
+	public function addBackButton():Void{
+		#if mobile
+		backButton = MobileControls.createBackButton(this, getMobileCamera());
+		add(backButton);
+		#end
+	}
+
+	public function addPauseButton():Void{
+		#if mobile
+		pauseButton = MobileControls.createPauseButton(this, getMobileCamera());
+		add(pauseButton);
+		#end
+	}
+
+	public function addHitbox(invisible:Bool = false):Void{
+		#if mobile
+		hitbox = MobileControls.createHitbox(this, getMobileCamera(), invisible);
+		add(hitbox);
+		#end
+	}
+
+	public function mobileList(items:Array<Dynamic>, selected:Int, change:Int->Void):Void{
+		#if mobile
+		MobileControls.handleList(this, cast items, selected, change);
+		#end
+	}
+
+	public function mobileTap(object:FlxBasic, input:String = "menuAccept"):Bool{
+		#if mobile
+		return object != null && MobileControls.handleTap(this, object, input);
+		#else
+		return false;
+		#end
+	}
+
+	public function mobileTapAnywhere(input:String = "menuAccept"):Bool{
+		#if mobile
+		return MobileControls.handleTap(this, null, input);
+		#else
+		return false;
+		#end
+	}
 
 	override function create(){
 		if(customTransIn != null){
@@ -93,6 +165,15 @@ class FlxUIStateExt extends FlxUIState
 			CustomTransition.transition(new InstantTransition(), _state);
 			return;
 		}
+	}
+
+	override function destroy():Void{
+		#if mobile
+		MobileInput.removeSwipeState(this);
+		MobileControls.destroyCamera(mobileCamera);
+		mobileCamera = null;
+		#end
+		super.destroy();
 	}
 
 	override function openSubState(SubState:FlxSubState):Void{

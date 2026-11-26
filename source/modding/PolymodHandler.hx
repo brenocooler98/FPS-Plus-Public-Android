@@ -72,7 +72,7 @@ class PolymodHandler
 			errorCallback: onPolymodError,
 			ignoredFiles: buildIgnoreList(),
 			frameworkParams: {
-				coreAssetRedirect: ASSETS_FOLDER
+				coreAssetRedirect: #if mobile null #else ASSETS_FOLDER #end
 			}
 		});
 

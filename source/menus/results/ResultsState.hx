@@ -462,6 +462,8 @@ class ResultsState extends FlxUIStateExt
 
 	override function update(elapsed:Float) {
 
+		if(!exiting && shownRank){ mobileTapAnywhere(); }
+
 		if((Binds.justPressed("menuAccept") || Binds.justPressed("menuBack")) && !exiting && shownRank){
 			returnToMenu();
 		}

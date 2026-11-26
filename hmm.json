@@ -1,6 +1,13 @@
 {
 	"dependencies": [
 		{
+			"name": "android-manager",
+			"type": "git",
+			"dir": null,
+			"ref": "main",
+			"url": "https://github.com/BrenninhoTools/android-manager"
+		},
+		{
 			"name": "compiletime",
 			"type": "haxelib",
 			"version": "2.8.0"

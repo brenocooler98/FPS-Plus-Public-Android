@@ -11,6 +11,14 @@ import modding.PolymodHandler;
 import openfl.Lib;
 import openfl.display.InteractiveObject;
 import openfl.display.Sprite;
+#if android
+import androidmanager.callback.Callback;
+import androidmanager.view.Window;
+#end
+#if mobile
+import mobile.MobileInput;
+import mobile.StorageUtil;
+#end
 
 class Main extends Sprite
 {
@@ -27,6 +35,10 @@ class Main extends Sprite
 	{
 		super();
 
+		#if mobile
+		StorageUtil.init();
+		#end
+
 		#if sys
 		launchArguments.no_vid = Sys.args().contains("-no_vid");
 		launchArguments.flippy_mode = Sys.args().contains("-flippy_mode");
@@ -34,7 +46,9 @@ class Main extends Sprite
 		#end
 
 		PolymodHandler.init();
+		#if (desktop || android)
 		hxvlc.util.Handle.init([]); // initializes LibVLC
+		#end
 		FlxSprite.defaultAntialiasing = true;
 
 		#if !debug
@@ -66,16 +80,40 @@ class Main extends Sprite
 		VideoHandler.MAX_FPS = 30;
 		#end
 
+		#if mobile
+		FlxG.mouse.visible = false;
+		MobileInput.init();
+		#end
+
+		#if android
+		FlxG.android.preventDefaultKeys = [BACK];
+		Window.keepScreenOn = true;
+		Window.immersive = true;
+		Callback.init();
+		Callback.onPause.add(onAppPause);
+		#end
+
 		#if sys
 		Lib.current.stage.window.onClose.add(function(){
 			if(Config.initialized){ Config.write(); }
+			#if (desktop || android)
 			hxvlc.util.Handle.dispose();
+			#end
 			Sys.exit(0);
 		});
 		#end
 
 		trace("launchArguments: " + launchArguments);
 	}
+
+	#if android
+	function onAppPause():Void{
+		if(Config.initialized){ Config.write(); }
+		if(Std.isOfType(FlxG.state, PlayState) && FlxG.state.subState == null){
+			MobileInput.inject("pause");
+		}
+	}
+	#end
 }
 
 typedef LaunchArguments = {

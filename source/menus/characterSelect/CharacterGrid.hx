@@ -125,6 +125,19 @@ class CharacterGrid extends FlxSpriteGroup
 		super.update(elapsed);
 	}
 
+	public function tappedPosition():Array<Int>{
+		#if mobile
+		for(gx in 0...grid.length){
+			for(gy in 0...grid[gx].length){
+				if(mobile.TouchUtil.tapped(grid[gx][gy])){
+					return [gx, gy];
+				}
+			}
+		}
+		#end
+		return null;
+	}
+
 	public function select(pos:Array<Int>, ?instant:Bool = false):Void{
 		for(gx in 0...grid.length){
 			for(gy in 0...grid[gx].length){

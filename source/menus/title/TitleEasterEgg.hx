@@ -73,12 +73,16 @@ class TitleEasterEgg extends MusicBeatState
 		FlxG.camera.flash();
 
 		super.create();
+
+		addBackButton();
 	}
 
 	override function update(elapsed:Float) {
 
 		if(ballin){
 			Conductor.songPosition = FlxG.sound.music.time;
+
+			mobileTapAnywhere();
 
 			if(Binds.justPressed("menuAccept")){
 				if((beatTime + Conductor.getCrotchetMs()*2) >= FlxG.sound.music.length){

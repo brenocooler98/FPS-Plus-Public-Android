@@ -45,6 +45,8 @@ class TitleVideo extends FlxUIStateExt
 
 		FlxG.mouse.visible = false;
 
+		if(video != null){ mobileTapAnywhere(); }
+
 		if(Binds.justPressed("menuAccept")){
 			video.skip();
 		}

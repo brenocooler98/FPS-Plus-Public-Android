@@ -116,6 +116,8 @@ class TitleScreen extends MusicBeatState
 
 		super.create();
 
+		addSwipe();
+
 	}
 
 	var logoBl:FlxSprite;
@@ -130,6 +132,8 @@ class TitleScreen extends MusicBeatState
 
 		Conductor.songPosition = FlxG.sound.music.time;
 			// FlxG.watch.addQuick("amp", FlxG.sound.music.amplitude);
+
+		if(!transitioning){ mobileTapAnywhere(); }
 
 		var pressedEnter:Bool = (Binds.justPressed("menuAccept"));
 

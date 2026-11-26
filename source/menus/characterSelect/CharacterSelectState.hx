@@ -291,6 +291,9 @@ class CharacterSelectState extends MusicBeatState
 		});
 
 		super.create();
+
+		addSwipe();
+		addBackButton();
 	}
 
 	override function update(elapsed:Float):Void{
@@ -298,6 +301,21 @@ class CharacterSelectState extends MusicBeatState
 		Conductor.songPosition = FlxG.sound.music.time;
 
 		if(!blockingSelection){
+			var tapped:Array<Int> = characterGrid.tappedPosition();
+			if(tapped != null){
+				if(tapped[0] == curGridPosition[0] && tapped[1] == curGridPosition[1]){
+					#if mobile mobile.MobileInput.inject("menuAccept"); #end
+				}
+				else{
+					changeGridPos([tapped[0] - curGridPosition[0], tapped[1] - curGridPosition[1]]);
+					changeCharacter(getCharacterFromPosition(curGridPosition));
+					characterGrid.showNormalCursor();
+					characterGrid.select(curGridPosition);
+					skipIdleCount = 0;
+					playCursorMoveSound();
+				}
+			}
+
 			if(Binds.justPressed("menuUp")){
 				changeGridPos([0, -1]);
 				changeCharacter(getCharacterFromPosition(curGridPosition));

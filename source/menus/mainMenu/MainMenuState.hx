@@ -209,6 +209,9 @@ class MainMenuState extends MusicBeatState
 		changeItem();
 
 		super.create();
+
+		addSwipe();
+		addBackButton();
 	}
 
 	var selectedSomething:Bool = false;
@@ -225,6 +228,11 @@ class MainMenuState extends MusicBeatState
 		}
 	
 		if (!selectedSomething){
+			mobileList(menuItems, curSelected, function(change:Int){
+				FlxG.sound.play(Paths.sound("scrollMenu"));
+				changeItem(change);
+			});
+
 			if (Binds.justPressed("menuUp")){
 				FlxG.sound.play(Paths.sound("scrollMenu"));
 				changeItem(-1);
