@@ -48,6 +48,12 @@
 	<architecture exclude="armv7" if="android" />
 	<architecture exclude="x86" if="android" />
 
+	<section if="android">
+		<config:android permission="android.permission.READ_EXTERNAL_STORAGE" />
+		<config:android permission="android.permission.WRITE_EXTERNAL_STORAGE" />
+		<config:android permission="android.permission.MANAGE_EXTERNAL_STORAGE" />
+	</section>
+
 	<!-- _____________________________ Path Settings ____________________________ -->
 
 	<app path="export/${buildType}" unless="32bit ENABLE_TRACY"/>
