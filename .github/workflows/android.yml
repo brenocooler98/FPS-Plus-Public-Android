@@ -52,10 +52,11 @@ jobs:
 
       - name: Setup Haxelib
         run: |
-          haxelib --never --global install haxelib 4.1.0
+          retry() { for attempt in 1 2 3 4 5; do "$@" && return 0; echo "Attempt $attempt failed, retrying in $((attempt * 20))s"; sleep $((attempt * 20)); done; return 1; }
+          retry haxelib --never --global install haxelib 4.1.0
           haxelib --global set haxelib 4.1.0
-          haxelib --never --global git haxelib https://github.com/FunkinCrew/haxelib.git funkin-patches --skip-dependencies
-          haxelib --never --global git hmm https://github.com/FunkinCrew/hmm funkin-patches
+          retry haxelib --never --global git haxelib https://github.com/FunkinCrew/haxelib.git funkin-patches --skip-dependencies
+          retry haxelib --never --global git hmm https://github.com/FunkinCrew/hmm funkin-patches
           haxelib --never newrepo
 
       - name: Restore Haxelib Cache
@@ -68,8 +69,9 @@ jobs:
       - name: Install Dependencies
         if: steps.cache-haxelib.outputs.cache-hit != 'true'
         run: |
+          retry() { for attempt in 1 2 3 4 5; do "$@" && return 0; echo "Attempt $attempt failed, retrying in $((attempt * 20))s"; sleep $((attempt * 20)); done; return 1; }
           git config --global advice.detachedHead false
-          haxelib --global run hmm install -q
+          retry haxelib --global run hmm install -q
           cd .haxelib/hxcpp/git/tools/hxcpp && haxe compile.hxml
 
       - name: List Haxelibs
@@ -126,9 +128,9 @@ jobs:
 
       - name: Optimize Assets
         run: |
-          pip install --quiet --break-system-packages pillow numpy pyoxipng || pip install --quiet pillow numpy pyoxipng
+          pip install --quiet --break-system-packages pillow numpy pyoxipng imagequant || pip install --quiet pillow numpy pyoxipng imagequant
           command -v ffmpeg >/dev/null || (sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg)
-          python3 tools/optimize_assets.py assets --spritemaps --trim --repack --audio --json --video --remove-junk --report optimize-report.json --no-cache --store ~/asset-store --prune
+          python3 tools/optimize_assets.py assets --spritemaps --trim --repack --quantize --audio --audio-quality 5 --json --video --remove-junk --report optimize-report.json --no-cache --store ~/asset-store --prune
 
       - name: Save Asset Cache
         if: steps.cache-assets.outputs.cache-hit != 'true'

@@ -23,7 +23,12 @@ try:
 except ImportError:
     oxipng = None
 
-VERSION = "7"
+try:
+    import imagequant
+except ImportError:
+    imagequant = None
+
+VERSION = "8"
 CACHE_NAME = ".asset_cache.json"
 SUBTEXTURE = re.compile(r"<SubTexture\b[^>]*>")
 NUMBER = r'(\b{}\s*=\s*")(-?\d+(?:\.\d+)?)(")'
@@ -389,21 +394,34 @@ def encode(pixels, options):
     return encode_pillow(pixels)
 
 
+def premultiplied(pixels):
+    values = pixels.astype(np.float32)
+    alpha = values[:, :, 3:4] / 255.0
+    return np.concatenate([values[:, :, :3] * alpha, values[:, :, 3:4]], axis=2)
+
+
 def quantize(pixels, options):
     image = Image.fromarray(pixels, "RGBA")
-    method = Image.Quantize.LIBIMAGEQUANT if "libimagequant" in getattr(Image.core, "__dict__", {}) else Image.Quantize.FASTOCTREE
-    try:
-        lossy = image.quantize(colors=options.colors, method=method, dither=Image.Dither.FLOYDSTEINBERG)
-    except (ValueError, OSError):
-        lossy = image.quantize(colors=options.colors, method=Image.Quantize.FASTOCTREE, dither=Image.Dither.FLOYDSTEINBERG)
-    candidate = np.asarray(lossy.convert("RGBA"))
-    mse = np.mean((pixels.astype(np.float32) - candidate.astype(np.float32)) ** 2)
+    lossy = None
+    if imagequant is not None:
+        try:
+            lossy = imagequant.quantize_pil_image(image, dithering_level=1.0, max_colors=options.colors, min_quality=0, max_quality=100)
+        except Exception:
+            lossy = None
+    if lossy is None:
+        method = Image.Quantize.LIBIMAGEQUANT if "libimagequant" in getattr(Image.core, "__dict__", {}) else Image.Quantize.FASTOCTREE
+        try:
+            lossy = image.quantize(colors=options.colors, method=method, dither=Image.Dither.FLOYDSTEINBERG)
+        except (ValueError, OSError):
+            lossy = image.quantize(colors=options.colors, method=Image.Quantize.FASTOCTREE, dither=Image.Dither.FLOYDSTEINBERG)
+    candidate = clean_alpha(np.asarray(lossy.convert("RGBA")))
+    mse = float(np.mean((premultiplied(pixels) - premultiplied(candidate)) ** 2))
     score = float("inf") if mse == 0 else 10 * np.log10((255 ** 2) / mse)
     return candidate if score >= options.min_psnr else pixels
 
 
 def settings_of(options):
-    return f"{VERSION}:{options.trim}:{options.repack}:{options.area_ratio}:{options.size_growth}:{options.quantize}:{options.colors}:{options.min_psnr}:{options.level}:{options.compression}:{options.zopfli_limit}:{options.zopfli_iterations}:{options.max_size}:{oxipng is not None}"
+    return f"{VERSION}:{imagequant is not None}:{options.trim}:{options.repack}:{options.area_ratio}:{options.size_growth}:{options.quantize}:{options.colors}:{options.min_psnr}:{options.level}:{options.compression}:{options.zopfli_limit}:{options.zopfli_iterations}:{options.max_size}:{oxipng is not None}"
 
 
 def store_key(path, xml_path, options):
@@ -639,9 +657,11 @@ def probe_audio(path):
     }
 
 
-def is_fake_stereo(path):
+def is_fake_stereo(path, threshold):
     process = subprocess.Popen(["ffmpeg", "-v", "quiet", "-i", path, "-map", "0:a:0", "-f", "s16le", "-acodec", "pcm_s16le", "-"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
-    fake = True
+    mid = 0.0
+    side = 0.0
+    exact = True
     leftover = b""
     try:
         while True:
@@ -651,15 +671,35 @@ def is_fake_stereo(path):
             chunk = leftover + chunk
             usable = len(chunk) - len(chunk) % 4
             leftover = chunk[usable:]
-            samples = np.frombuffer(chunk[:usable], dtype=np.int16).reshape(-1, 2).astype(np.int32)
-            if samples.size and np.abs(samples[:, 0] - samples[:, 1]).max() > 2:
-                fake = False
-                break
+            samples = np.frombuffer(chunk[:usable], dtype=np.int16).reshape(-1, 2).astype(np.float64)
+            if not samples.size:
+                continue
+            difference = samples[:, 0] - samples[:, 1]
+            if exact and np.abs(difference).max() > 2:
+                exact = False
+                if threshold <= 0:
+                    return False
+            side += float(np.sum(difference * difference))
+            total = samples[:, 0] + samples[:, 1]
+            mid += float(np.sum(total * total))
     finally:
         process.stdout.close()
         process.kill()
         process.wait()
-    return fake
+    if exact:
+        return True
+    if side == 0:
+        return True
+    return mid > 0 and 10 * np.log10(mid / side) >= threshold
+
+
+def audio_note(mono, resample, options):
+    notes = []
+    if mono:
+        notes.append("mono")
+    if resample:
+        notes.append(f"{options.audio_rate} Hz")
+    return ", ".join(notes)
 
 
 def optimize_audio(path, options):
@@ -668,12 +708,13 @@ def optimize_audio(path, options):
     if info["codec"] != "vorbis" or info["channels"] == 0:
         return before, False, ""
 
-    mono = options.audio_mono and info["channels"] == 2 and is_fake_stereo(path)
+    mono = options.audio_mono and info["channels"] == 2 and is_fake_stereo(path, options.mono_threshold)
     channels = 1 if mono else info["channels"]
+    resample = options.audio_rate > 0 and info["rate"] > options.audio_rate
     target = AUDIO_BITRATES.get(options.audio_quality, 192)
     if channels == 1:
         target = int(target * 0.6)
-    if not mono and info["bitrate"] and info["bitrate"] <= target * 1.15:
+    if not mono and not resample and info["bitrate"] and info["bitrate"] <= target * 1.15:
         return before, False, ""
 
     handle, temp_path = tempfile.mkstemp(suffix=".ogg", dir=os.path.dirname(path))
@@ -682,14 +723,16 @@ def optimize_audio(path, options):
         command = ["ffmpeg", "-v", "error", "-y", "-i", path, "-map", "0:a:0", "-map_metadata", "-1", "-c:a", "libvorbis", "-q:a", str(options.audio_quality)]
         if mono:
             command += ["-ac", "1"]
+        if resample:
+            command += ["-ar", str(options.audio_rate)]
         subprocess.run(command + [temp_path], check=True)
         after = os.path.getsize(temp_path)
         if after >= before * 0.9:
             return before, False, ""
         if options.dry_run:
-            return after, True, "mono" if mono else ""
+            return after, True, audio_note(mono, resample, options)
         os.replace(temp_path, path)
-        return after, True, "mono" if mono else ""
+        return after, True, audio_note(mono, resample, options)
     finally:
         if os.path.exists(temp_path):
             os.remove(temp_path)
@@ -951,7 +994,7 @@ def optimize_spritemaps(folder, options):
         if copy.shape != region.shape or not np.array_equal(copy, region):
             return before, before, False, ""
 
-    encoded = [(number, data, encode(atlas, options)) for number, data, atlas in outputs]
+    encoded = [(number, data, encode(quantize(atlas, options) if options.quantize else atlas, options)) for number, data, atlas in outputs]
     after = sum(len(data) + len(png) for _, data, png in encoded)
     note = f"{len(maps)} -> {len(encoded)} spritemaps, area {old_area // 1000}k -> {new_area // 1000}k px"
     if options.dry_run:
@@ -968,7 +1011,7 @@ def optimize_spritemaps(folder, options):
 
 
 def spritemap_store_key(folder, options):
-    digest = hashlib.sha1(f"spritemap:{VERSION}:{options.spritemap_limit}:{options.level}:{options.compression}:{oxipng is not None}".encode())
+    digest = hashlib.sha1(f"spritemap:{VERSION}:{options.spritemap_limit}:{options.level}:{options.compression}:{oxipng is not None}:{imagequant is not None}:{options.quantize}:{options.colors}:{options.min_psnr}".encode())
     for name in spritemap_files(folder):
         digest.update(name.encode())
         with open(os.path.join(folder, name), "rb") as handle:
@@ -1025,7 +1068,7 @@ def kind_settings(kind, options):
     if kind == "video":
         return f"video:{VERSION}:{options.video_crf}:{options.video_bitrate}:{options.video_width}x{options.video_height}"
     if kind == "audio":
-        return f"audio:{VERSION}:{options.audio_quality}:{options.audio_mono}"
+        return f"audio:{VERSION}:{options.audio_quality}:{options.audio_mono}:{options.mono_threshold}:{options.audio_rate}"
     if kind == "json":
         return f"json:{VERSION}"
     return settings_of(options)
@@ -1193,7 +1236,7 @@ def main():
     parser.add_argument("--source", default="source", help="Source folder scanned for grid sprite sheets that must keep their layout")
     parser.add_argument("--quantize", action="store_true", help="Allow lossy palette reduction")
     parser.add_argument("--colors", type=int, default=256, help="Palette size used by --quantize")
-    parser.add_argument("--min-psnr", type=float, default=38.0, help="Minimum quality for --quantize")
+    parser.add_argument("--min-psnr", type=float, default=42.0, help="Minimum quality for --quantize")
     parser.add_argument("--level", type=int, default=2, help="oxipng optimization level from 0 to 6")
     parser.add_argument("--compression", type=int, default=9, help="libdeflate compression from 1 to 12")
     parser.add_argument("--zopfli-limit", type=int, default=0, help="Use zopfli for textures up to this many bytes of pixels divided by 4, slow but smaller")
@@ -1212,6 +1255,8 @@ def main():
     parser.add_argument("--scale-manifest", help="JSON file that receives the original size of every downscaled texture")
     parser.add_argument("--audio", action="store_true", help="Re-encode Vorbis audio with a high bitrate to a smaller size")
     parser.add_argument("--audio-quality", type=int, default=6, help="Vorbis quality used by --audio, from 3 to 8")
+    parser.add_argument("--mono-threshold", type=float, default=40.0, help="Turn stereo audio into mono when the difference between channels is this many dB quieter than the sound, 0 only merges identical channels")
+    parser.add_argument("--audio-rate", type=int, default=44100, help="Resample audio with a higher sample rate down to this, 0 keeps it")
     parser.add_argument("--no-audio-mono", dest="audio_mono", action="store_false", help="Keep stereo files whose channels are identical")
     parser.add_argument("--json", action="store_true", help="Minify JSON data files")
     parser.add_argument("--video", action="store_true", help="Re-encode MP4 videos that are bigger or heavier than needed")
