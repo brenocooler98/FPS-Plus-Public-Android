@@ -23,7 +23,7 @@ try:
 except ImportError:
     oxipng = None
 
-VERSION = "6"
+VERSION = "7"
 CACHE_NAME = ".asset_cache.json"
 SUBTEXTURE = re.compile(r"<SubTexture\b[^>]*>")
 NUMBER = r'(\b{}\s*=\s*")(-?\d+(?:\.\d+)?)(")'
@@ -288,7 +288,7 @@ def repack_atlas(pixels, xml_text, frames, limit, target):
     _, new_width, new_height, spots = packed
     if max(new_width, new_height) > side_limit + 1:
         return None
-    if new_width * new_height >= width * height * 0.97:
+    if max(width, height) <= limit and new_width * new_height >= width * height * 0.97:
         return None
 
     atlas = np.zeros((new_height, new_width, 4), dtype=np.uint8)
@@ -461,6 +461,10 @@ def optimize(path, options, grid):
 def choose_layout(pixels, candidates, file_size, options):
     if not candidates:
         return None
+    oversized = max(pixels.shape[:2]) > options.atlas_limit
+    for result, label in candidates:
+        if oversized and max(result[0].shape[:2]) <= options.atlas_limit:
+            return result, label
     base = min(file_size, len(encode(clean_alpha(pixels), options)))
     area = pixels.shape[0] * pixels.shape[1]
     for result, label in candidates:
@@ -789,6 +793,232 @@ def remove_junk(roots, dry_run):
     return removed, size
 
 
+SPRITEMAP_JSON = re.compile(r"spritemap(\d+)\.json")
+
+
+def load_spritemaps(folder):
+    maps = []
+    for name in os.listdir(folder):
+        match = SPRITEMAP_JSON.fullmatch(name)
+        if not match:
+            continue
+        index = int(match.group(1))
+        json_path = os.path.join(folder, name)
+        png_path = os.path.join(folder, f"spritemap{index}.png")
+        if not os.path.exists(png_path):
+            return None
+        try:
+            with open(json_path, "r", encoding="utf-8-sig") as handle:
+                data = json.load(handle)
+            sprites = data["ATLAS"]["SPRITES"]
+        except (OSError, ValueError, KeyError, TypeError):
+            return None
+        maps.append((index, json_path, png_path, data, sprites))
+    maps.sort(key=lambda item: item[0])
+    if not maps or maps[0][0] != 1:
+        return None
+    return maps
+
+
+def spritemap_files(folder):
+    return sorted(name for name in os.listdir(folder) if re.fullmatch(r"spritemap\d+\.(json|png)", name))
+
+
+def read_spritemap_sprites(maps):
+    entries = []
+    for _, _, png_path, data, sprites in maps:
+        with Image.open(png_path) as source:
+            pixels = clean_alpha(np.asarray(source.convert("RGBA")))
+        height, width = pixels.shape[:2]
+        for item in sprites:
+            sprite = item.get("SPRITE") if isinstance(item, dict) else None
+            if not isinstance(sprite, dict):
+                return None
+            try:
+                x, y, w, h = int(sprite["x"]), int(sprite["y"]), int(sprite["w"]), int(sprite["h"])
+            except (KeyError, TypeError, ValueError):
+                return None
+            if w <= 0 or h <= 0 or x < 0 or y < 0 or x + w > width or y + h > height:
+                return None
+            entries.append((sprite, pixels[y:y + h, x:x + w]))
+    return entries
+
+
+def pack_spritemap_bins(sizes, limit):
+    order = sorted(range(len(sizes)), key=lambda i: (-sizes[i][1], -sizes[i][0]))
+    bins = []
+    for i in order:
+        w = sizes[i][0] + PADDING
+        h = sizes[i][1] + PADDING
+        if w > limit or h > limit:
+            return None
+        placed = False
+        for skyline, members in bins:
+            found = skyline.find(w, h)
+            if found is not None and found[3] + h <= limit:
+                skyline.place(w, h)
+                members.append(i)
+                placed = True
+                break
+        if not placed:
+            skyline = Skyline(limit)
+            skyline.place(w, h)
+            bins.append((skyline, [i]))
+    result = []
+    for skyline, members in bins:
+        sub = [sizes[i] for i in members]
+        area = sum((w + PADDING) * (h + PADDING) for w, h in sub)
+        widest = max(w for w, _ in sub) + PADDING
+        side = max(widest, int(area ** 0.5))
+        factors = (0.6, 0.75, 0.9, 1.0, 1.1, 1.25, 1.5, 2.0)
+        widths = sorted({min(limit, max(widest, int(side * f))) for f in factors} | {limit})
+        packed = pack(sub, widths, limit, limit)
+        if packed is None or packed[1] > limit or packed[2] > limit:
+            return None
+        result.append((members, packed[1], packed[2], packed[3]))
+    return result
+
+
+def optimize_spritemaps(folder, options):
+    maps = load_spritemaps(folder)
+    if maps is None:
+        return 0, 0, False, ""
+    before = sum(os.path.getsize(os.path.join(folder, name)) for name in spritemap_files(folder))
+    entries = read_spritemap_sprites(maps)
+    if not entries:
+        return before, before, False, ""
+
+    old_area = 0
+    old_side = 0
+    for _, _, png_path, _, _ in maps:
+        with Image.open(png_path) as source:
+            old_area += source.size[0] * source.size[1]
+            old_side = max(old_side, source.size[0], source.size[1])
+
+    unique = {}
+    regions = []
+    owners = []
+    for sprite, region in entries:
+        digest = hashlib.sha1(region.tobytes() + str(region.shape).encode()).digest()
+        if digest not in unique:
+            unique[digest] = len(regions)
+            regions.append(region)
+        owners.append(unique[digest])
+
+    limit = options.spritemap_limit
+    sizes = [(r.shape[1], r.shape[0]) for r in regions]
+    bins = pack_spritemap_bins(sizes, limit)
+    if bins is None:
+        return before, before, False, ""
+
+    new_area = sum(w * h for _, w, h, _ in bins)
+    if old_side <= limit and new_area >= old_area * 0.97:
+        return before, before, False, ""
+
+    location = {}
+    images = []
+    for number, (members, width, height, spots) in enumerate(bins, 1):
+        atlas = np.zeros((height, width, 4), dtype=np.uint8)
+        for slot, region_index in enumerate(members):
+            x, y = spots[slot]
+            region = regions[region_index]
+            atlas[y:y + region.shape[0], x:x + region.shape[1]] = region
+            location[region_index] = (number, x, y)
+        images.append(atlas)
+
+    template = maps[0][3]
+    outputs = []
+    for number, atlas in enumerate(images, 1):
+        sprites = []
+        for (sprite, _), region_index in zip(entries, owners):
+            target, x, y = location[region_index]
+            if target != number:
+                continue
+            updated = dict(sprite)
+            updated["x"] = x
+            updated["y"] = y
+            sprites.append({"SPRITE": updated})
+        meta = dict(template.get("meta") or {})
+        meta["image"] = f"spritemap{number}.png"
+        meta["size"] = {"w": int(atlas.shape[1]), "h": int(atlas.shape[0])}
+        data = {"ATLAS": {"SPRITES": sprites}, "meta": meta}
+        outputs.append((number, json.dumps(data, ensure_ascii=False, separators=(",", ":")).encode("utf-8"), atlas))
+
+    for (sprite, region), region_index in zip(entries, owners):
+        target, x, y = location[region_index]
+        atlas = images[target - 1]
+        copy = atlas[y:y + region.shape[0], x:x + region.shape[1]]
+        if copy.shape != region.shape or not np.array_equal(copy, region):
+            return before, before, False, ""
+
+    encoded = [(number, data, encode(atlas, options)) for number, data, atlas in outputs]
+    after = sum(len(data) + len(png) for _, data, png in encoded)
+    note = f"{len(maps)} -> {len(encoded)} spritemaps, area {old_area // 1000}k -> {new_area // 1000}k px"
+    if options.dry_run:
+        return before, after, True, note
+
+    for name in spritemap_files(folder):
+        os.remove(os.path.join(folder, name))
+    for number, data, png in encoded:
+        with open(os.path.join(folder, f"spritemap{number}.json"), "wb") as handle:
+            handle.write(data)
+        with open(os.path.join(folder, f"spritemap{number}.png"), "wb") as handle:
+            handle.write(png)
+    return before, after, True, note
+
+
+def spritemap_store_key(folder, options):
+    digest = hashlib.sha1(f"spritemap:{VERSION}:{options.spritemap_limit}:{options.level}:{options.compression}:{oxipng is not None}".encode())
+    for name in spritemap_files(folder):
+        digest.update(name.encode())
+        with open(os.path.join(folder, name), "rb") as handle:
+            digest.update(handle.read())
+    return digest.hexdigest()
+
+
+def run_spritemaps(folder, options):
+    if options.store and not options.dry_run:
+        key = spritemap_store_key(folder, options)
+        stored = os.path.join(options.store, key[:2], key)
+        listing = os.path.join(stored, "files.json")
+        before = sum(os.path.getsize(os.path.join(folder, name)) for name in spritemap_files(folder))
+        if os.path.exists(listing):
+            with open(listing, "r", encoding="utf-8") as handle:
+                names = json.load(handle)
+            if names:
+                for name in spritemap_files(folder):
+                    os.remove(os.path.join(folder, name))
+                for name in names:
+                    shutil.copyfile(os.path.join(stored, name), os.path.join(folder, name))
+            after = sum(os.path.getsize(os.path.join(folder, name)) for name in spritemap_files(folder))
+            return folder, before, after, bool(names), key, True, ""
+        _, after, modified, note = optimize_spritemaps(folder, options)
+        os.makedirs(stored, exist_ok=True)
+        names = spritemap_files(folder) if modified else []
+        for name in names:
+            shutil.copyfile(os.path.join(folder, name), os.path.join(stored, name))
+        with open(listing + ".tmp", "w", encoding="utf-8") as handle:
+            json.dump(names, handle)
+        os.replace(listing + ".tmp", listing)
+        return folder, before, after if modified else before, modified, key, False, note
+    before, after, modified, note = optimize_spritemaps(folder, options)
+    return folder, before, after, modified, None, False, note
+
+
+def collect_animate(roots, excludes):
+    folders = []
+    for root in roots:
+        if not os.path.isdir(root):
+            continue
+        for folder, _, names in os.walk(root):
+            relative = folder.replace("\\", "/")
+            if any(fnmatch.fnmatch(relative, pattern) for pattern in excludes):
+                continue
+            if "spritemap1.json" in names and "spritemap1.png" in names:
+                folders.append(folder)
+    return sorted(folders)
+
+
 def kind_settings(kind, options):
     if kind == "xml":
         return f"xml:{VERSION}"
@@ -850,18 +1080,52 @@ def collect(roots, excludes):
     return sorted(files)
 
 
-def grid_images(source_root):
+def grid_images(source_root, script_roots=()):
     names = set()
-    if not source_root or not os.path.isdir(source_root):
-        return names
-    for folder, _, files in os.walk(source_root):
+    roots = [root for root in [source_root, *script_roots] if root and os.path.isdir(root)]
+    for folder, _, files in (entry for root in roots for entry in os.walk(root)):
         for name in files:
-            if not name.endswith(".hx"):
+            if not name.endswith((".hx", ".hxc", ".hscript", ".lua")):
                 continue
             with open(os.path.join(folder, name), "r", encoding="utf-8", errors="ignore") as handle:
                 for match in GRID_LOAD.finditer(handle.read()):
                     names.add(match.group(1).replace("\\", "/"))
     return names
+
+
+def mask_locks(roots):
+    stems = set()
+    sizes = set()
+    for root in roots:
+        if not os.path.isdir(root):
+            continue
+        for folder, _, names in os.walk(root):
+            for name in names:
+                if not name.lower().endswith("_mask.png"):
+                    continue
+                stems.add(name[: -len("_mask.png")].lower())
+                try:
+                    with Image.open(os.path.join(folder, name)) as image:
+                        sizes.add(image.size)
+                except OSError:
+                    pass
+    return stems, sizes
+
+
+def is_mask_locked(path, locks):
+    stems, sizes = locks
+    if not stems:
+        return False
+    name = os.path.basename(path).lower()
+    if name.endswith("_mask.png"):
+        return True
+    if os.path.splitext(name)[0] in stems:
+        return True
+    try:
+        with Image.open(path) as image:
+            return image.size in sizes
+    except OSError:
+        return False
 
 
 def is_grid(path, names):
@@ -923,7 +1187,9 @@ def main():
     parser.add_argument("--repack", action="store_true", help="Trim every frame, merge duplicated frames and repack Sparrow atlases")
     parser.add_argument("--area-ratio", type=float, default=0.75, help="Keep a trimmed or repacked atlas that grows on disk only if its texture area drops to this ratio or less")
     parser.add_argument("--size-growth", type=float, default=1.25, help="Biggest file growth allowed by --area-ratio")
-    parser.add_argument("--atlas-limit", type=int, default=8192, help="Biggest side allowed for a repacked atlas")
+    parser.add_argument("--spritemaps", action="store_true", help="Merge duplicated sprites and repack Adobe Animate spritemaps, splitting them when they are bigger than --spritemap-limit")
+    parser.add_argument("--spritemap-limit", type=int, default=4096, help="Biggest side allowed for an Adobe Animate spritemap, most mobile GPUs can not load more than 4096")
+    parser.add_argument("--atlas-limit", type=int, default=4096, help="Biggest side allowed for a repacked atlas")
     parser.add_argument("--source", default="source", help="Source folder scanned for grid sprite sheets that must keep their layout")
     parser.add_argument("--quantize", action="store_true", help="Allow lossy palette reduction")
     parser.add_argument("--colors", type=int, default=256, help="Palette size used by --quantize")
@@ -972,10 +1238,37 @@ def main():
         if junk_count:
             print(f"Removed {junk_count} junk files ({human(junk_size)})")
 
-    grid = grid_images(options.source)
+    grid = grid_images(options.source, options.paths)
+    locks = mask_locks(options.paths)
     cache = {} if options.no_cache else load_cache(options.cache)
 
-    work = [("sprite", path) for path in collect(options.paths, options.exclude)]
+    used_keys = set()
+    per_kind = {}
+    rewritten = set()
+    if options.spritemaps:
+        folders = collect_animate(options.paths, options.exclude)
+        print(f"{len(folders)} Animate atlases found")
+        with ProcessPoolExecutor(max_workers=max(1, options.jobs)) as pool:
+            jobs = {pool.submit(run_spritemaps, folder, options): folder for folder in folders}
+            for index, job in enumerate(as_completed(jobs), 1):
+                folder = jobs[job]
+                try:
+                    _, before, after, modified, key, from_store, notes = job.result()
+                except Exception as error:
+                    print(f"[{index}/{len(folders)}] failed {folder}: {error}")
+                    continue
+                if key is not None:
+                    used_keys.add(key)
+                stats = per_kind.setdefault("spritemap", [0, 0, 0])
+                stats[0] += before
+                stats[1] += after
+                stats[2] += 1
+                if modified:
+                    rewritten.update(os.path.join(folder, name) for name in spritemap_files(folder) if name.endswith(".png"))
+                    if notes and not from_store:
+                        print(f"[{index}/{len(folders)}] {folder} {human(before)} -> {human(after)} ({notes})")
+
+    work = [("sprite", path) for path in collect(options.paths, options.exclude) if path not in rewritten]
     if options.audio:
         if shutil.which("ffmpeg") and shutil.which("ffprobe"):
             work += [("audio", path) for path in collect_extension(options.paths, options.exclude, ".ogg")]
@@ -1004,16 +1297,14 @@ def main():
     for kind, _ in work:
         counts[kind] = counts.get(kind, 0) + 1
     summary = ", ".join(f"{count} {kind}" for kind, count in sorted(counts.items()))
-    print(f"{summary} found, {len(pending)} to process, {len(grid)} grid sheets kept as they are")
+    print(f"{summary} found, {len(pending)} to process, {len(grid)} grid sheets and {len(locks[0])} masked sprites keep their layout")
 
-    total_before = 0
-    total_after = 0
+    total_before = per_kind.get("spritemap", [0, 0])[0]
+    total_after = per_kind.get("spritemap", [0, 0, 0])[1]
     changed = 0
     failed = 0
     reused = 0
     repacked = 0
-    used_keys = set()
-    per_kind = {}
     scaled = {}
     if options.scale_manifest and os.path.exists(options.scale_manifest):
         try:
@@ -1023,7 +1314,7 @@ def main():
             scaled = {}
 
     with ProcessPoolExecutor(max_workers=max(1, options.jobs)) as pool:
-        jobs = {pool.submit(optimize_job, kind, path, options, kind == "sprite" and is_grid(path, grid)): (kind, path) for kind, path in pending}
+        jobs = {pool.submit(optimize_job, kind, path, options, kind == "sprite" and (is_grid(path, grid) or is_mask_locked(path, locks))): (kind, path) for kind, path in pending}
         for index, job in enumerate(as_completed(jobs), 1):
             kind, path = jobs[job]
             try:

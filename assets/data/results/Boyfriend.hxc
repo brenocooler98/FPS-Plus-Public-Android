@@ -148,7 +148,9 @@ class Boyfriend extends ResultsCharacter
 			case Rank.loss:
 				FlxG.sound.playMusic(Paths.music("results/bf/shit-intro"), 1, true);
 				FlxG.sound.music.onComplete = function() {
-					FlxG.sound.playMusic(Paths.music("results/bf/shit-loop"), 1, true); 
+					FlxG.signals.postUpdate.addOnce(function() {
+						FlxG.sound.playMusic(Paths.music("results/bf/shit-loop"), 1, true); 
+					});
 				}
 				
 			default:

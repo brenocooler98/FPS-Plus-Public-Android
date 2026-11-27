@@ -453,8 +453,11 @@ class ResultsState extends FlxUIStateExt
 
 		character.playIntroSong();
 		FlxG.sound.music.onComplete = function() {
-			character.playSong();
-			finishedCounting();
+			FlxG.signals.postUpdate.addOnce(function() {
+				if(exiting){ return; }
+				character.playSong();
+				finishedCounting();
+			});
 		}
 
 		super.create();

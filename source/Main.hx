@@ -16,6 +16,7 @@ import androidmanager.callback.Callback;
 import androidmanager.view.Window;
 #end
 #if mobile
+import mobile.CrashHandler;
 import mobile.MobileInput;
 import mobile.StorageUtil;
 #end
@@ -37,6 +38,7 @@ class Main extends Sprite
 
 		#if mobile
 		StorageUtil.init();
+		CrashHandler.init();
 		#end
 
 		#if sys

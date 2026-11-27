@@ -128,7 +128,7 @@ jobs:
         run: |
           pip install --quiet --break-system-packages pillow numpy pyoxipng || pip install --quiet pillow numpy pyoxipng
           command -v ffmpeg >/dev/null || (sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg)
-          python3 tools/optimize_assets.py assets --trim --repack --audio --json --video --remove-junk --report optimize-report.json --no-cache --store ~/asset-store --prune
+          python3 tools/optimize_assets.py assets --spritemaps --trim --repack --audio --json --video --remove-junk --report optimize-report.json --no-cache --store ~/asset-store --prune
 
       - name: Save Asset Cache
         if: steps.cache-assets.outputs.cache-hit != 'true'
