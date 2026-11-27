@@ -547,10 +547,20 @@ class ModManagerState extends FlxUIStateExt
 	}
 
 	function getModIcon(mod:String):BitmapData{
-		if(FileSystem.exists(PolymodHandler.MODS_FOLDER + "/" + mod + "/icon.png")){
-			return BitmapData.fromFile(PolymodHandler.MODS_FOLDER + "/" + mod + "/icon.png");
+		var icon:BitmapData = null;
+		var path:String = PolymodHandler.MODS_FOLDER + "/" + mod + "/icon.png";
+		try{
+			if(FileSystem.exists(path) && !FileSystem.isDirectory(path)){
+				icon = BitmapData.fromFile(path);
+			}
 		}
-		return BitmapData.fromFile(Paths.image("menu/modMenu/defaultModIcon", true));
+		catch(e){
+			icon = null;
+		}
+		if(icon == null){
+			icon = openfl.utils.Assets.getBitmapData(Paths.image("menu/modMenu/defaultModIcon", true), false);
+		}
+		return icon;
 	}
 
 	function buildFullModList():Void{

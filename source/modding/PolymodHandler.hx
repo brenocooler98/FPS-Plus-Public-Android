@@ -67,6 +67,7 @@ class PolymodHandler
 		loadedModMetadata = Polymod.init({
 			modRoot: MODS_FOLDER,
 			dirs: loadedModDirs,
+			#if sys customFilesystem: SafeFileSystem, #end
 			useScriptedClasses: false,
 			loadScriptsAsync: false,
 			errorCallback: onPolymodError,

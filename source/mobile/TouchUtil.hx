@@ -4,8 +4,11 @@ import flixel.FlxBasic;
 import flixel.FlxCamera;
 import flixel.FlxG;
 import flixel.FlxObject;
+import flixel.FlxSprite;
+import flixel.group.FlxSpriteGroup;
 import flixel.input.touch.FlxTouch;
 import flixel.math.FlxPoint;
+import flixel.math.FlxRect;
 
 enum SwipeDirection
 {
@@ -17,7 +20,7 @@ enum SwipeDirection
 
 class TouchUtil
 {
-	public static var tapDistance:Float = 30;
+	public static var tapDistance:Float = 45;
 
 	public static var verticalStep:Float = 70;
 	public static var horizontalStep:Float = 110;
@@ -110,16 +113,39 @@ class TouchUtil
 				continue;
 			if (object == null)
 				return true;
-			if (touch.overlaps(object, getCamera(object, camera)))
+			if (touchOverlaps(touch, object, getCamera(object, camera)))
 				return true;
 		}
 		return false;
 	}
 
+	public static function tapPosition(?camera:FlxCamera):Null<FlxPoint>
+	{
+		for (touch in FlxG.touches.list)
+			if (isTap(touch))
+				return touch.getViewPosition(camera != null ? camera : FlxG.camera);
+		return null;
+	}
+
+	public static function touchOverlaps(touch:FlxTouch, object:FlxBasic, camera:FlxCamera):Bool
+	{
+		if (Std.isOfType(object, FlxSprite) && !Std.isOfType(object, FlxSpriteGroup))
+		{
+			var sprite:FlxSprite = cast object;
+			var point:FlxPoint = touch.getViewPosition(camera);
+			var bounds:FlxRect = sprite.getScreenBounds(null, camera);
+			var inside:Bool = bounds.containsPoint(point);
+			point.put();
+			bounds.put();
+			return inside;
+		}
+		return touch.overlaps(object, camera);
+	}
+
 	public static function justTouched(object:FlxBasic, ?camera:FlxCamera):Bool
 	{
 		for (touch in FlxG.touches.list)
-			if (touch.justPressed && touch.overlaps(object, getCamera(object, camera)))
+			if (touch.justPressed && touchOverlaps(touch, object, getCamera(object, camera)))
 				return true;
 		return false;
 	}

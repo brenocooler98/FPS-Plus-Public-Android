@@ -331,12 +331,9 @@ class ConfigMenu extends FlxUIStateExt
 
 		if(!exiting){
 			if(state == "topLevelMenu"){
-				mobileList(icons, curSelected, function(change:Int){
-					FlxG.sound.play(Paths.sound("scrollMenu"));
-					changeCategory(change);
-				});
+				mobileCategoryTap();
 			}
-			else if(state == "subMenu" && !mobileTap(prevCategoryArrow, "menuCycleLeft") && !mobileTap(nextCategoryArrow, "menuCycleRight")){
+			else if(state == "subMenu" && !mobileTap(prevCategoryArrow, "menuCycleLeft") && !mobileTap(nextCategoryArrow, "menuCycleRight") && !mobileTap(subMenuUpArrow, "menuUp") && !mobileTap(subMenuDownArrow, "menuDown")){
 				mobileOptionTap();
 			}
 		}
@@ -501,30 +498,59 @@ class ConfigMenu extends FlxUIStateExt
 
 	}
 
+	function mobileCategoryTap():Void{
+		#if mobile
+		if(mobile.MobileInput.topState() != this){ return; }
+		var i:Int = icons.length;
+		while(i-- > 0){
+			if(!icons[i].visible){ continue; }
+			if(mobile.TouchUtil.tapped(icons[i]) || mobile.TouchUtil.tapped(titles[i])){
+				var offset:Int = optionIndexOffset[i];
+				if(offset == 0){
+					mobile.MobileInput.inject("menuAccept");
+				}
+				else{
+					FlxG.sound.play(Paths.sound("scrollMenu"));
+					changeCategory(offset);
+				}
+				return;
+			}
+		}
+		#end
+	}
+
 	function mobileOptionTap():Void{
 		#if mobile
-		var i:Int = optionNames.length - 1;
-		while(i >= 0){
-			if(curListStartOffset + i < configOptions[curSelected].length){
-				if(i == curListPosition && mobileTap(optionValues[i], "menuRight")){
-					return;
-				}
-				if(mobile.TouchUtil.tapped(optionNames[i]) || mobile.TouchUtil.tapped(optionValues[i])){
-					if(i == curListPosition){
-						mobile.MobileInput.inject("menuAccept");
-					}
-					else{
-						if(configOptions[curSelected][curListStartOffset + curListPosition].optionDeselect != null){
-							configOptions[curSelected][curListStartOffset + curListPosition].optionDeselect();
-						}
-						curListPosition = i;
-						FlxG.sound.play(Paths.sound("scrollMenu"));
-						textUpdate();
-					}
-					return;
-				}
+		if(mobile.MobileInput.topState() != this){ return; }
+		var point = mobile.TouchUtil.tapPosition();
+		if(point == null){ return; }
+		var px:Float = point.x;
+		var py:Float = point.y;
+		point.put();
+
+		if(px < grid.x || px > grid.x + grid.width || py < grid.y || py >= grid.y + 60 * optionNames.length){ return; }
+		var row:Int = Std.int((py - grid.y) / 60);
+		if(curListStartOffset + row >= configOptions[curSelected].length){ return; }
+
+		if(row != curListPosition){
+			if(configOptions[curSelected][curListStartOffset + curListPosition].optionDeselect != null){
+				configOptions[curSelected][curListStartOffset + curListPosition].optionDeselect();
 			}
-			i--;
+			curListPosition = row;
+			FlxG.sound.play(Paths.sound("scrollMenu"));
+			textUpdate();
+			return;
+		}
+
+		var value:FlxTextExt = optionValues[row];
+		var valueText:String = StringTools.trim(value.text);
+		var valueWidth:Float = value.textField.textWidth;
+		var valueLeft:Float = value.x + value.width - valueWidth - 4;
+		if(valueText.length > 0 && valueText != "---" && px >= valueLeft - 10){
+			mobile.MobileInput.inject(px < valueLeft + valueWidth / 2 ? "menuLeft" : "menuRight");
+		}
+		else{
+			mobile.MobileInput.inject("menuAccept");
 		}
 		#end
 	}
