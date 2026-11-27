@@ -636,10 +636,7 @@ class AtlasSprite extends FlxAnimate
 		}
 
 		// Load all spritemaps
-		var spritemapList = Utils.readDirectory(animate);
-		for(f in spritemapList){
-			if(!f.startsWith("spritemap")){ spritemapList.remove(f); }
-		}
+		var spritemapList = Utils.readDirectory(animate).filter((file) -> file.startsWith("spritemap"));
 		var jsonList = spritemapList.filter((file) -> file.endsWith(".json"));
 
 		for (sm in jsonList){
