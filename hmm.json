@@ -129,6 +129,11 @@
 			"dir": null,
 			"ref": "bdb191fe7cf745c02a980749906dbf22719e200b",
 			"url": "https://github.com/fponticelli/thx.semver"
+		},
+		{
+			"name": "tink_core",
+			"type": "haxelib",
+			"version": "1.26.0"
 		}
 	]
 }
