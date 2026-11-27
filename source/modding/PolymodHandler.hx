@@ -311,7 +311,7 @@ class PolymodHandler
 				//Log the message based on its severity.
 				switch (error.severity){
 					case INFO | DEBUG:
-						//does nothing lol
+						#if mobile mobile.LogHandler.write("[Polymod] " + error.message); #end
 					case WARNING | ERROR:
 						trace(error.message, null);
 				}

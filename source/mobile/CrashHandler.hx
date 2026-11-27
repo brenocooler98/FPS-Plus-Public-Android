@@ -35,6 +35,7 @@ class CrashHandler
 		}
 
 		var text:String = "Uncaught Error: " + message + "\n\n" + lines.join("\n");
+		LogHandler.write(text);
 		var file:String = save(text);
 		if(file != null){
 			text += "\n\nSaved to: " + file;
