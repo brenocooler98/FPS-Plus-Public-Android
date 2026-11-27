@@ -1440,14 +1440,62 @@ class ConfigMenu extends FlxUIStateExt
 		#end
 
 		#if mobile
-		var mobileOptions = new ConfigOption("Mobile Options", "", "Press ENTER to change the mobile settings.");
-		mobileOptions.optionUpdate = function(){
-			if(pressAccept){
+		var invisibleHitboxSetting = new ConfigOption("Invisible Hitbox", genericOnOff[Config.invisibleHitbox?0:1], "Hides the hitbox lanes when you press them during gameplay.");
+		invisibleHitboxSetting.optionUpdate = function(){
+			if(pressRight || pressLeft || pressAccept){
 				FlxG.sound.play(Paths.sound("scrollMenu"));
-				openSubState(new MobileOptionsSubState());
+				Config.invisibleHitbox = !Config.invisibleHitbox;
 			}
+			invisibleHitboxSetting.setting = genericOnOff[Config.invisibleHitbox?0:1];
 		};
-		configOptions[0].insert(0, mobileOptions);
+
+		var invisiblePauseSetting = new ConfigOption("Invisible Pause Button", genericOnOff[Config.invisiblePauseButton?0:1], "Makes the pause button invisible during gameplay. It can still be pressed.");
+		invisiblePauseSetting.optionUpdate = function(){
+			if(pressRight || pressLeft || pressAccept){
+				FlxG.sound.play(Paths.sound("scrollMenu"));
+				Config.invisiblePauseButton = !Config.invisiblePauseButton;
+			}
+			invisiblePauseSetting.setting = genericOnOff[Config.invisiblePauseButton?0:1];
+		};
+
+		var chartEditorPauseSetting = new ConfigOption("Chart Editor in Pause", genericOnOff[Config.chartEditorInPause?0:1], "Adds a Chart Editor option to the pause menu in Freeplay.");
+		chartEditorPauseSetting.optionUpdate = function(){
+			if(pressRight || pressLeft || pressAccept){
+				FlxG.sound.play(Paths.sound("scrollMenu"));
+				Config.chartEditorInPause = !Config.chartEditorInPause;
+			}
+			chartEditorPauseSetting.setting = genericOnOff[Config.chartEditorInPause?0:1];
+		};
+
+		final startStorageType:String = mobile.StorageUtil.getStorageType();
+		var storageType:String = startStorageType;
+		final storageDescription:String = "Where the game keeps the mods folder and other files.";
+		var storageTypeSetting = new ConfigOption("Storage Type", storageType.toLowerCase(), storageDescription);
+		storageTypeSetting.optionUpdate = function(){
+			if(pressRight || pressLeft || pressAccept){
+				FlxG.sound.play(Paths.sound("scrollMenu"));
+				var types:Array<String> = mobile.StorageUtil.STORAGE_TYPES;
+				var index:Int = types.indexOf(storageType) + (pressLeft ? -1 : 1);
+				if(index < 0){ index = types.length - 1; }
+				if(index >= types.length){ index = 0; }
+				storageType = types[index];
+				mobile.StorageUtil.setStorageType(storageType);
+				var description:String = storageDescription;
+				if(storageType != startStorageType){
+					description += "\nRestart the game to apply.";
+				}
+				if(storageType == "External" && !mobile.StorageUtil.hasExternalAccess()){
+					description += "\nAllow \"All files access\" for this to work.";
+				}
+				storageTypeSetting.description = description;
+				textUpdate();
+			}
+			storageTypeSetting.setting = storageType.toLowerCase();
+		};
+
+		for(option in [invisibleHitboxSetting, invisiblePauseSetting, chartEditorPauseSetting, storageTypeSetting]){
+			configOptions[0].push(option);
+		}
 		configOptions[0].remove(keyBinds);
 		configOptions[1].remove(fullscreenSettings);
 		configOptions[1].remove(cacheSettings);

@@ -115,6 +115,28 @@ jobs:
         if: steps.cache-lime.outputs.cache-hit != 'true'
         run: haxelib run lime rebuild android -release -nocffi
 
+      - name: Restore Asset Cache
+        id: cache-assets
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/asset-store
+          key: assets-${{ hashFiles('tools/optimize_assets.py') }}-${{ hashFiles('assets/**/*.png', 'assets/**/*.xml', 'assets/**/*.ogg', 'assets/**/*.json', 'assets/**/*.mp4') }}
+          restore-keys: |
+            assets-${{ hashFiles('tools/optimize_assets.py') }}-
+
+      - name: Optimize Assets
+        run: |
+          pip install --quiet --break-system-packages pillow numpy pyoxipng || pip install --quiet pillow numpy pyoxipng
+          command -v ffmpeg >/dev/null || (sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg)
+          python3 tools/optimize_assets.py assets --trim --repack --audio --json --video --remove-junk --report optimize-report.json --no-cache --store ~/asset-store --prune
+
+      - name: Save Asset Cache
+        if: steps.cache-assets.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/asset-store
+          key: ${{ steps.cache-assets.outputs.cache-primary-key }}
+
       - name: Build
         run: haxelib run lime build android -release
         timeout-minutes: 120
