@@ -28,7 +28,7 @@ try:
 except ImportError:
     imagequant = None
 
-VERSION = "8"
+VERSION = "9"
 CACHE_NAME = ".asset_cache.json"
 SUBTEXTURE = re.compile(r"<SubTexture\b[^>]*>")
 NUMBER = r'(\b{}\s*=\s*")(-?\d+(?:\.\d+)?)(")'
@@ -284,10 +284,17 @@ def repack_atlas(pixels, xml_text, frames, limit, target):
     side = max(widest, int(area ** 0.5))
     factors = (0.5, 0.6, 0.7, 0.8, 0.85, 0.9, 0.95, 1.0, 1.05, 1.1, 1.2, 1.35, 1.5, 1.75, 2.0)
     widths = {min(limit, max(widest, int(side * f))) for f in factors} | {min(limit, max(widest, width))}
-    scale = min(1.0, target / max(width, height)) if target > 0 else 1.0
-    side_limit = int(target / scale) if target > 0 else limit
-    widths |= {max(widest, min(limit, side_limit))}
-    packed = pack(sizes, sorted(widths), limit, side_limit)
+    packed = None
+    scale = 1.0
+    side_limit = min(limit, target) if target > 0 else limit
+    if widest <= side_limit:
+        packed = pack(sizes, sorted(w for w in widths | {side_limit} if w <= side_limit), side_limit, side_limit)
+        if packed is not None and max(packed[1], packed[2]) > side_limit:
+            packed = None
+    if packed is None and target > 0:
+        scale = min(1.0, target / max(width, height))
+        side_limit = int(target / scale)
+        packed = pack(sizes, sorted(widths | {max(widest, min(limit, side_limit))}), limit, side_limit)
     if packed is None:
         return None
     _, new_width, new_height, spots = packed
@@ -424,8 +431,8 @@ def settings_of(options):
     return f"{VERSION}:{imagequant is not None}:{options.trim}:{options.repack}:{options.area_ratio}:{options.size_growth}:{options.quantize}:{options.colors}:{options.min_psnr}:{options.level}:{options.compression}:{options.zopfli_limit}:{options.zopfli_iterations}:{options.max_size}:{oxipng is not None}"
 
 
-def store_key(path, xml_path, options):
-    digest = hashlib.sha1(settings_of(options).encode())
+def store_key(path, xml_path, options, grid=False):
+    digest = hashlib.sha1(f"{settings_of(options)}:{grid}".encode())
     with open(path, "rb") as handle:
         digest.update(handle.read())
     if os.path.exists(xml_path):
@@ -464,7 +471,7 @@ def optimize(path, options, grid):
     xml_path = os.path.splitext(path)[0] + ".xml"
     before = os.path.getsize(path)
     if options.store and not options.dry_run:
-        key = store_key(path, xml_path, options)
+        key = store_key(path, xml_path, options, grid)
         folder = os.path.join(options.store, key[:2], key)
         restored = restore_from_store(path, xml_path, folder)
         if restored is not None:
@@ -493,6 +500,11 @@ def choose_layout(pixels, candidates, file_size, options):
     return None
 
 
+def is_spritemap_png(path):
+    folder = os.path.dirname(path)
+    return re.fullmatch(r"spritemap\d+\.png", os.path.basename(path)) is not None and os.path.exists(os.path.join(folder, "Animation.json"))
+
+
 def optimize_file(path, xml_path, options, grid):
     file_size = os.path.getsize(path)
     new_xml = None
@@ -511,6 +523,8 @@ def optimize_file(path, xml_path, options, grid):
     if os.path.exists(xml_path):
         with open(xml_path, "r", encoding="utf-8-sig") as handle:
             xml_text = handle.read()
+
+    scale_locked = is_spritemap_png(path)
 
     if xml_text is not None and not grid and (options.trim or options.repack):
         frames = read_frames(xml_text, pixels.shape[1], pixels.shape[0])
@@ -535,7 +549,7 @@ def optimize_file(path, xml_path, options, grid):
     original_size = None
     height, width = pixels.shape[:2]
     factor = scale
-    if options.max_size > 0 and max(width, height) * factor > options.max_size:
+    if not scale_locked and options.max_size > 0 and max(width, height) * factor > options.max_size:
         factor = options.max_size / max(width, height)
     if factor < 1:
         original_size = (width, height)
@@ -1171,6 +1185,16 @@ def is_mask_locked(path, locks):
         return False
 
 
+def sprite_lock(kind, path, grid, locks):
+    if kind != "sprite":
+        return False
+    if is_mask_locked(path, locks):
+        return "lock"
+    if is_grid(path, grid):
+        return "grid"
+    return False
+
+
 def is_grid(path, names):
     relative = path.replace("\\", "/")
     stem = os.path.splitext(relative)[0]
@@ -1359,7 +1383,7 @@ def main():
             scaled = {}
 
     with ProcessPoolExecutor(max_workers=max(1, options.jobs)) as pool:
-        jobs = {pool.submit(optimize_job, kind, path, options, kind == "sprite" and (is_grid(path, grid) or is_mask_locked(path, locks))): (kind, path) for kind, path in pending}
+        jobs = {pool.submit(optimize_job, kind, path, options, sprite_lock(kind, path, grid, locks)): (kind, path) for kind, path in pending}
         for index, job in enumerate(as_completed(jobs), 1):
             kind, path = jobs[job]
             try:

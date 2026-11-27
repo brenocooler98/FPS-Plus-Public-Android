@@ -137,6 +137,9 @@ class GraphicAsset implements IFlxDestroyable
 		bitmap.disposeImage();
 		
 		var data:FlxGraphic = FlxGraphic.fromBitmapData(bitmap, false, key, false);
+		if(customBitmap == null){
+			flixel.graphics.tile.TextureScale.applyFromManifest(data, key);
+		}
 		data.persist = true;
 		data.destroyOnNoUse = false;
 
@@ -144,6 +147,7 @@ class GraphicAsset implements IFlxDestroyable
 	}
 
 	public function destroy():Void{
+		flixel.graphics.tile.TextureScale.remove(graphic);
 		if(graphic.bitmap.__texture != null){
 			graphic.bitmap.__texture.dispose();
 		}
