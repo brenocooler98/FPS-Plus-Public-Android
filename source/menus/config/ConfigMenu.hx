@@ -1522,27 +1522,6 @@ class ConfigMenu extends FlxUIStateExt
 		for(option in [invisibleHitboxSetting, invisiblePauseSetting, chartEditorPauseSetting, storageTypeSetting]){
 			configOptions[0].push(option);
 		}
-
-		var antialiasingSetting = new ConfigOption("Antialiasing", genericOnOff[Config.antialiasing?0:1], "Smooths graphics when they are scaled or rotated.\nTurn it off for better performance on weaker devices.");
-		antialiasingSetting.optionUpdate = function(){
-			if(pressRight || pressLeft || pressAccept){
-				FlxG.sound.play(Paths.sound("scrollMenu"));
-				Config.antialiasing = !Config.antialiasing;
-			}
-			antialiasingSetting.setting = genericOnOff[Config.antialiasing?0:1];
-		};
-
-		var shadersSetting = new ConfigOption("Shaders", genericOnOff[Config.shaders?0:1], "Enables drop shadows and complex blend effects.\nTurn it off for better performance on weaker devices.");
-		shadersSetting.optionUpdate = function(){
-			if(pressRight || pressLeft || pressAccept){
-				FlxG.sound.play(Paths.sound("scrollMenu"));
-				Config.shaders = !Config.shaders;
-			}
-			shadersSetting.setting = genericOnOff[Config.shaders?0:1];
-		};
-
-		configOptions[1].push(antialiasingSetting);
-		configOptions[1].push(shadersSetting);
 		configOptions[0].remove(keyBinds);
 		configOptions[1].remove(fullscreenSettings);
 		configOptions[1].remove(cacheSettings);
