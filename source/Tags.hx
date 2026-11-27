@@ -12,7 +12,7 @@ class Tags
 
 		if(string.startsWith("#")){
 			var tag:String = string.substring(1);
-			if(Utils.exists("data/tags/"+location+"/"+tag+".json")){
+			if(Utils.exists(Paths.json(tag, "data/tags/"+location))){
 				var tagJson = Json.parse(Utils.getText(Paths.json(tag, "data/tags/"+location)));
 				r = tagJson.values;
 			}

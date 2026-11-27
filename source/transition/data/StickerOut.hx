@@ -28,6 +28,10 @@ class StickerOut extends BaseTransition{
 
 	override public function play(){
 		generateStickerInfo();
+		if(stickerInfo.length == 0){
+			end();
+			return;
+		}
 		addNextStickers(0);
 	}
 
@@ -42,9 +46,21 @@ class StickerOut extends BaseTransition{
 		}
 
 		for(set in sets){
-			stickerList.push([]);
+			var stickers:Array<String> = [];
 			for(path in Utils.readDirectory("assets/images/ui/stickers/" + set + "/")){
-				stickerList[stickerList.length-1].push(("ui/stickers/" + set + "/" + path).split(".png")[0]);
+				if(StringTools.endsWith(path, ".png")){
+					stickers.push(("ui/stickers/" + set + "/" + path).split(".png")[0]);
+				}
+			}
+			if(stickers.length > 0){
+				stickerList.push(stickers);
+			}
+		}
+
+		if(stickerList.length == 0 && sets != null){
+			var allSets:Array<String> = Utils.readDirectory("assets/images/ui/stickers/");
+			if(allSets.length > 0){
+				generateStickerList(allSets);
 			}
 		}
 	}
@@ -52,6 +68,9 @@ class StickerOut extends BaseTransition{
 	public static function generateStickerInfo():Void{
 		stickerInfo = [];
 		excludePos = [];
+		if(stickerList.length == 0){
+			return;
+		}
 		for(i in 0...STICKER_COUNT){
 			final randomCharacter:Int = FlxG.random.int(0, stickerList.length-1);
 			final randomSticker:Int = FlxG.random.int(0, stickerList[randomCharacter].length-1);

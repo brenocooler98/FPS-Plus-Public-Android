@@ -91,6 +91,20 @@ class FlxCameraExt extends FlxCamera
 	}
 
 	override function drawPixels(?frame:FlxFrame, ?pixels:BitmapData, matrix:FlxMatrix, ?transform:ColorTransform, ?blend:BlendMode, ?smoothing:Bool = false, ?shader:FlxShader):Void{
+		#if mobile
+		if(!config.Config.antialiasing){
+			smoothing = false;
+		}
+		if(!config.Config.shaders){
+			if(shader != null && Std.isOfType(shader, shaders.DropShadowShader)){
+				shader = null;
+			}
+			if(KHR_BLEND_MODES.contains(blend) && !hasKhronosExtension){
+				super.drawPixels(frame, pixels, matrix, transform, null, smoothing, shader);
+				return;
+			}
+		}
+		#end
 		if(KHR_BLEND_MODES.contains(blend) && !hasKhronosExtension){
 			drawCameraScreen(_cameraTexture, this);
 

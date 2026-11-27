@@ -47,6 +47,8 @@ class Config
 	@configParam("invisibleHitbox")			public static var invisibleHitbox:Bool = false;
 	@configParam("invisiblePauseButton")	public static var invisiblePauseButton:Bool = false;
 	@configParam("chartEditorInPause")		public static var chartEditorInPause:Bool = false;
+	@configParam("antialiasing")			public static var antialiasing:Bool = true;
+	@configParam("shaders")					public static var shaders:Bool = true;
 
 	#if UPDATE_CHECKING @configParam("checkForUpdates") public static var checkForUpdates:Bool = true; #end
 
