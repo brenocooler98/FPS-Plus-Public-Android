@@ -21,3 +21,4 @@ mods/*
 
 .asset_cache.json
 optimize-report.json
+__pycache__/
