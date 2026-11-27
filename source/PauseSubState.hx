@@ -53,7 +53,7 @@ class PauseSubState extends BasePauseSubState
 			menuItems.insert(2, "Skip Song");
 		}
 		
-		if (!PlayState.isStoryMode){
+		if (!PlayState.isStoryMode #if mobile && Config.chartEditorInPause #end){
 			menuItems.insert(2, "Chart Editor");
 		}
 

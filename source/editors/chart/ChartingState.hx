@@ -747,6 +747,8 @@ class ChartingState extends MusicBeatState
 		
 		super.create();
 
+		addBackButton();
+
 		add(typeAlert);
 		add(editorCursor);
 
@@ -1704,7 +1706,7 @@ class ChartingState extends MusicBeatState
 		}
 
 		//Playtest song on PlayState.
-		if(FlxG.keys.anyJustPressed([ENTER])){
+		if(FlxG.keys.anyJustPressed([ENTER]) #if mobile || mobile.MobileInput.check("menuBack", JUST_PRESSED) #end){
 			pauseMusic();
 
 			generateChart();

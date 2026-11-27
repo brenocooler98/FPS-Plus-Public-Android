@@ -817,9 +817,9 @@ class ConfigMenu extends FlxUIStateExt
 			framerateValue = Config.ALLOWED_FRAMERATE_VALUES.length - 1;
 		}
 
-		var fpsCap = new ConfigOption("Framerate", #if desktop (Config.ALLOWED_FRAMERATE_VALUES[framerateValue] == 999 ? "uncapped" : ""+Config.ALLOWED_FRAMERATE_VALUES[framerateValue]) #else "disabled" #end, #if desktop "Uncaps the framerate during gameplay.\n(Some menus will limit framerate but gameplay will always be at the specified framerate.)" #else "Disabled on Web builds." #end);
+		var fpsCap = new ConfigOption("Framerate", #if (desktop || mobile) (Config.ALLOWED_FRAMERATE_VALUES[framerateValue] == 999 ? "uncapped" : ""+Config.ALLOWED_FRAMERATE_VALUES[framerateValue]) #else "disabled" #end, #if (desktop || mobile) "Uncaps the framerate during gameplay.\n(Some menus will limit framerate but gameplay will always be at the specified framerate.)" #else "Disabled on Web builds." #end);
 		fpsCap.optionUpdate = function(){
-			#if desktop
+			#if (desktop || mobile)
 			if (pressRight) {
 				FlxG.sound.play(Paths.sound("scrollMenu"));
 				framerateValue++;
@@ -1440,6 +1440,14 @@ class ConfigMenu extends FlxUIStateExt
 		#end
 
 		#if mobile
+		var mobileOptions = new ConfigOption("Mobile Options", "", "Press ENTER to change the mobile settings.");
+		mobileOptions.optionUpdate = function(){
+			if(pressAccept){
+				FlxG.sound.play(Paths.sound("scrollMenu"));
+				openSubState(new MobileOptionsSubState());
+			}
+		};
+		configOptions[0].insert(0, mobileOptions);
 		configOptions[0].remove(keyBinds);
 		configOptions[1].remove(fullscreenSettings);
 		configOptions[1].remove(cacheSettings);

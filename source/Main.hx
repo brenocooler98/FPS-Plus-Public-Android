@@ -76,6 +76,11 @@ class Main extends Sprite
 		addChild(game);
 		addChild(fpsDisplay);
 
+		#if mobile
+		FlxG.signals.gameResized.add(function(width:Int, height:Int) updateFPSDisplay());
+		updateFPSDisplay();
+		#end
+
 		#if web
 		VideoHandler.MAX_FPS = 30;
 		#end
@@ -105,6 +110,18 @@ class Main extends Sprite
 
 		trace("launchArguments: " + launchArguments);
 	}
+
+	#if mobile
+	static function updateFPSDisplay():Void{
+		if(fpsDisplay == null || FlxG.scaleMode == null){
+			return;
+		}
+		var scale:Float = Math.max(1, FlxG.scaleMode.scale.y);
+		fpsDisplay.scaleX = fpsDisplay.scaleY = scale;
+		fpsDisplay.x = FlxG.scaleMode.offset.x + 3 * scale;
+		fpsDisplay.y = FlxG.scaleMode.offset.y + 3 * scale;
+	}
+	#end
 
 	#if android
 	function onAppPause():Void{

@@ -68,9 +68,12 @@ class FlxUIStateExt extends FlxUIState
 		#end
 	}
 
-	public function addPauseButton():Void{
+	public function addPauseButton(invisible:Bool = false):Void{
 		#if mobile
 		pauseButton = MobileControls.createPauseButton(this, getMobileCamera());
+		if(invisible){
+			pauseButton.alpha = 0;
+		}
 		add(pauseButton);
 		#end
 	}

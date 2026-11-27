@@ -776,8 +776,8 @@ class PlayState extends MusicBeatState
 
 		super.create();
 
-		addHitbox();
-		addPauseButton();
+		addHitbox(Config.invisibleHitbox);
+		addPauseButton(Config.invisiblePauseButton);
 
 		for(script in scripts){ script.postCreate(); }
 

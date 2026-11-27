@@ -31,7 +31,7 @@ class Config
 	@configParam("centeredNotes")			public static var centeredNotes:Bool = false;
 	@configParam("scrollSpeedOverride")		public static var scrollSpeedOverride:Float = -1;
 	@configParam("showComboBreaks")			public static var showComboBreaks:Bool = false;
-	@configParam("showFPS")					public static var showFPS:Bool = false;
+	@configParam("showFPS")					public static var showFPS:Bool = #if mobile true #else false #end;
 	@configParam("useGPU")					public static var useGPU:Bool = true;
 	@configParam("extraCamMovement_2")		public static var extraCamMovement:Int = 0;
 	@configParam("camBopAmount")			public static var camBopAmount:Int = 0;
@@ -44,6 +44,9 @@ class Config
 	@configParam("tabOutPause")				public static var tabOutPause:Bool = true;
 	@configParam("volume")					public static var volume:Float = 1;
 	@configParam("muted")					public static var muted:Bool = false;
+	@configParam("invisibleHitbox")			public static var invisibleHitbox:Bool = false;
+	@configParam("invisiblePauseButton")	public static var invisiblePauseButton:Bool = false;
+	@configParam("chartEditorInPause")		public static var chartEditorInPause:Bool = false;
 
 	#if UPDATE_CHECKING @configParam("checkForUpdates") public static var checkForUpdates:Bool = true; #end
 
@@ -128,11 +131,22 @@ class Config
 	public static function setFramerate(cap:Int, ?useValueInsteadOfSave:Int = -1):Void{
 		var fps:Int = framerate;
 		if(useValueInsteadOfSave > -1){ fps = useValueInsteadOfSave; }
-		if(fps == 999 && cap == 999){ fps = 0; }
+		if(fps == 999 && cap == 999){ fps = #if mobile getDisplayRefreshRate() #else 0 #end; }
 		else{ fps = (fps > cap) ? cap : fps; }
 		FlxG.updateFramerate = fps;
 		FlxG.drawFramerate = fps;
 	}
+
+	#if mobile
+	public static function getDisplayRefreshRate():Int{
+		var rate:Int = 60;
+		var window = openfl.Lib.application.window;
+		if(window != null && window.displayMode != null && window.displayMode.refreshRate > 0){
+			rate = window.displayMode.refreshRate;
+		}
+		return rate;
+	}
+	#end
 
 	static function get_configList():Array<ConfigInfo>{
 		if(configList != null){ // Preventing excessive Reflect calls

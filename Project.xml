@@ -74,6 +74,9 @@
 		NOT USING A DIRECT THING TO THE ASSET!!!
 	-->
 	<assets path="assets/fonts" embed='true' />
+
+	<library name="mods" preload="false" if="android" />
+	<assets path="mods" library="mods" embed="false" if="android" />
 	
 	<!-- _______________________________ Libraries ______________________________ -->
 
